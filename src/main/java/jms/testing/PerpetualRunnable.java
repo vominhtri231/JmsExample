@@ -1,6 +1,6 @@
 package jms.testing;
 
-public class PerpetualRunnable implements Runnable {
+class PerpetualRunnable implements Runnable {
     private Runnable runnable;
 
     private boolean isStop;
@@ -16,7 +16,7 @@ public class PerpetualRunnable implements Runnable {
         }
     }
 
-    public synchronized void stop() {
+    synchronized void stop() {
         isStop = true;
     }
 

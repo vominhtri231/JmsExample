@@ -1,6 +1,5 @@
 package jms.testing;
 
-import java.io.IOException;
 import java.util.Scanner;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -17,7 +16,7 @@ import static jms.testing.Config.QUEUE_NAME;
 
 public class Consumer {
 
-    public static void main(String[] args) throws JMSException, IOException {
+    public static void main(String[] args) throws JMSException {
         JmsService jmsService = new JmsServiceImpl(BROKER_URL);
         jmsService.initialize();
 
