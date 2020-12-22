@@ -1,0 +1,6 @@
+### Intellij ###
+TestJms.iml
+/.idea
+
+/target
+### Maven ###
