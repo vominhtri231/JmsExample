@@ -58,13 +58,42 @@ public class JmsServiceImpl implements JmsService {
     }
 
     @Override
-    public Message readMessage(String queueName) throws JMSException {
-        return readMessage(queueName, MessageConsumer::receive);
+    public Message readQueueMessage(String queueName) throws JMSException {
+        return readQueueMessage(queueName, MessageConsumer::receive);
     }
 
     @Override
-    public Message readMessage(String queueName, long timeout) throws JMSException {
-        return readMessage(queueName, queueReceiver -> queueReceiver.receive(timeout));
+    public Message readQueueMessage(String queueName, long timeout) throws JMSException {
+        return readQueueMessage(queueName, consumer -> consumer.receive(timeout));
+    }
+
+    private Message readQueueMessage(String queueName, MessageExtractor messageExtractor) throws JMSException {
+        QueueSession queueSession = null;
+        QueueReceiver queueReceiver = null;
+
+        try {
+            queueSession = queueConnection.createQueueSession(false, Session.AUTO_ACKNOWLEDGE);
+            Queue queue = queueSession.createQueue(queueName);
+            queueReceiver = queueSession.createReceiver(queue);
+
+            return messageExtractor.apply(queueReceiver);
+        } finally {
+            if (queueReceiver != null) {
+                queueReceiver.close();
+            }
+            if (queueSession != null) {
+                queueSession.close();
+            }
+        }
+    }
+
+    @Override
+    public AutoCloseable subscribeToQueue(MessageListener messageListener, String queueName) throws JMSException {
+        QueueSession queueSession = queueConnection.createQueueSession(false, Session.AUTO_ACKNOWLEDGE);
+        Queue queue = queueSession.createQueue(queueName);
+        QueueReceiver queueReceiver = queueSession.createReceiver(queue);
+        queueReceiver.setMessageListener(messageListener);
+        return new OpenSubscription(queueSession, queueReceiver);
     }
 
     @Override
@@ -88,12 +117,42 @@ public class JmsServiceImpl implements JmsService {
     }
 
     @Override
+    public Message readTopicMessage(String topicName) throws JMSException {
+        return readTopicMessage(topicName, MessageConsumer::receive);
+    }
+
+    @Override
+    public Message readTopicMessage(String topicName, long timeout) throws JMSException {
+        return readTopicMessage(topicName, consumer -> consumer.receive(timeout));
+    }
+
+    private Message readTopicMessage(String topicName, MessageExtractor messageExtractor) throws JMSException {
+        TopicSession topicSession = null;
+        TopicSubscriber topicSubscriber = null;
+
+        try {
+            topicSession = topicConnection.createTopicSession(false, Session.AUTO_ACKNOWLEDGE);
+            Topic topic = topicSession.createTopic(topicName);
+            topicSubscriber = topicSession.createSubscriber(topic);
+
+            return messageExtractor.apply(topicSubscriber);
+        } finally {
+            if (topicSubscriber != null) {
+                topicSubscriber.close();
+            }
+            if (topicSession != null) {
+                topicSession.close();
+            }
+        }
+    }
+
+    @Override
     public AutoCloseable subscribeToTopic(MessageListener messageListener, String topicName) throws JMSException {
         TopicSession topicSession = topicConnection.createTopicSession(false, Session.AUTO_ACKNOWLEDGE);
         Topic topic = topicSession.createTopic(topicName);
         TopicSubscriber subscriber = topicSession.createSubscriber(topic);
         subscriber.setMessageListener(messageListener);
-        return new OpenTopicSubscription(topicSession, subscriber);
+        return new OpenSubscription(topicSession, subscriber);
     }
 
     @Override
@@ -107,42 +166,18 @@ public class JmsServiceImpl implements JmsService {
         }
     }
 
-    private Message readMessage(String queueName, QueueMessageExtractor queueMessageExtractor) throws JMSException {
-        QueueSession queueSession = null;
-        QueueReceiver queueReceiver = null;
-
-        try {
-            queueSession = queueConnection.createQueueSession(false, Session.AUTO_ACKNOWLEDGE);
-            Queue queue = queueSession.createQueue(queueName);
-            queueReceiver = queueSession.createReceiver(queue);
-
-            Message message = queueMessageExtractor.apply(queueReceiver);
-            if (message != null) {
-                message.acknowledge();
-            }
-            return message;
-        } finally {
-            if (queueReceiver != null) {
-                queueReceiver.close();
-            }
-            if (queueSession != null) {
-                queueSession.close();
-            }
-        }
-    }
-
     @FunctionalInterface
-    private interface QueueMessageExtractor {
-        Message apply(QueueReceiver receiver) throws JMSException;
+    private interface MessageExtractor {
+        Message apply(MessageConsumer receiver) throws JMSException;
     }
 
-    private static class OpenTopicSubscription implements AutoCloseable {
+    private static class OpenSubscription implements AutoCloseable {
         Session topicSession;
-        TopicSubscriber subscriber;
+        MessageConsumer consumer;
 
-        OpenTopicSubscription(Session session, TopicSubscriber subscriber) {
+        OpenSubscription(Session session, MessageConsumer consumer) {
             this.topicSession = session;
-            this.subscriber = subscriber;
+            this.consumer = consumer;
         }
 
         @Override
@@ -151,8 +186,8 @@ public class JmsServiceImpl implements JmsService {
                 topicSession.close();
             }
 
-            if (subscriber != null) {
-                subscriber.close();
+            if (consumer != null) {
+                consumer.close();
             }
         }
     }

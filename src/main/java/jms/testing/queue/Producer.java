@@ -1,4 +1,4 @@
-package jms.testing;
+package jms.testing.queue;
 
 import javax.jms.JMSException;
 import javax.jms.TextMessage;
